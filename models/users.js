@@ -3,7 +3,7 @@ import md5 from 'md5';
 
 
 export default {
-    async registration(body) {
+    async register(body) {
         const hashedPassword = md5(md5(body.password) + process.env.SECRET);
 
         const values = [body.firstName, body.lastName, body.email.toLowerCase(), body.md5(body.password)+ process.env.SECRET];

@@ -1,5 +1,4 @@
 import md5 from "md5";
-import dotenv from "dotenv"
 import cryptoJS from "crypto-js";
 import models from "../models/users.js";
 
@@ -16,15 +15,10 @@ export default {
                 password
             } = req.body;
 
-            if (!firstName || !lastName || !email || !password) {
-                res.status(422).json({
-                    message: 'Missing param!',
-                });
-                return
-            }
+
             const lowerCaseEmail = email.toLowerCase();
             const hashedPassword = md5(md5(password)  + process.env.SECRET);
-            const result = await models.registration({
+            const result = await models.register({
                 firstName,
                 lastName,
                 lowerCaseEmail,
@@ -52,12 +46,6 @@ export default {
     async login(req, res) {
         try {
             const { email, password } = req.body;
-
-            if (!email || !password) {
-                res.status(422).json({
-                    message: 'Missing param',
-                })
-            };
 
             const secret = process.env.SECRET;
             const hash = cryptoJS.AES.encrypt(JSON.stringify({
@@ -92,12 +80,7 @@ export default {
         try {
             const users = await models.getUsersList()
 
-            if (!users) {
-                res.status(422).json({
-                    users: {},
-                });
-                return;
-            }
+
             res.status(200).json({
                 message: 'Users retrieved successfully',
                 users: users
@@ -152,11 +135,6 @@ export default {
                 id
             } = req.body;
 
-            if (!id || !firstName || !lastName || !email || !password) {
-                res.status(422).json({
-                    message: 'Missing parameters!',
-                })
-            };
 
             const hashedPassword = md5(md5(password)  + process.env.SECRET);
             const lowerCaseEmail = email.toLowerCase()
@@ -191,12 +169,7 @@ export default {
         try {
             const { id } = req.params;
 
-            if (!id) {
-                res.status(422).json({
-                    message: 'Missing parameters!',
-                })
-                return;
-            }
+
 
             const result = await models.deleteProfile({ id });
             if (!result.success) {

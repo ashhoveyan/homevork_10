@@ -10,12 +10,7 @@ export default {
                 taskDate,
                 userId } = req.body;
 
-            if (!title, !description, !taskDate, !userId) {
-                res.status(422).json({
-                    message: 'Missing param!',
-                });
-                return;
-            }
+
 
             const result = await models.createTask({
                 title,
@@ -72,11 +67,7 @@ export default {
                 userId
             } = req.body;
 
-            if (!title || !description || !taskDate || !userId) {
-                res.status(422).json({
-                    message: 'Missing parameters!',
-                })
-            };
+
 
             const result = await models.updateTask({
                 title,
