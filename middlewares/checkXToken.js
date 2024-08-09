@@ -1,13 +1,15 @@
 import CryptoJS from 'crypto-js';
+import dotenv from 'dotenv';
 
-const secretKey = "NodeJS";
+dotenv.config();
+
 
 const checkXToken = (req, res, next) => {
     const token = req.headers['x-token'];
 
     if (token) {
         try {
-            const bytes = CryptoJS.AES.decrypt(token, secretKey);
+            const bytes = CryptoJS.AES.decrypt(token, process.env.SECRET);
             const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
 
             if (decryptedData) {

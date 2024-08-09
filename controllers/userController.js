@@ -1,114 +1,221 @@
-import express from 'express';
-import md5 from 'md5';
-import CryptoJS from 'crypto-js';
-import fs from 'fs';
-import {v4 as uuidv4} from 'uuid';
-import validate from '../utils/userValidator.js'
-import {fileURLToPath} from 'url';
-import path from 'path';
+import md5 from "md5";
+import dotenv from "dotenv"
+import cryptoJS from "crypto-js";
+import models from "../models/users.js";
 
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
 
 export default {
-    register (req, res)  {
-        const body = req.body;
-        const registerValidate = validate.register(body)
-
+    async register(req, res) {
         try {
-            if (!registerValidate.haveErrors) {
-                body.email = body.email.toLowerCase();
+            const {
+                firstName,
+                lastName,
+                email,
+                password
+            } = req.body;
 
-                const filePath = './users/' + body.email + '.json'
-                if (fs.existsSync(filePath)) {
-                    return res.status(400).json({ error: "User already exists" });
-                }
-
-                body.id = uuidv4();
-                body.password = md5(body.password);
-                console.log(body)
-                fs.writeFileSync( filePath, JSON.stringify(body, null, 2), 'utf8');
-
-                return res.status(201).json({ message: "User registered successfully" });
+            if (!firstName || !lastName || !email || !password) {
+                res.status(422).json({
+                    message: 'Missing param!',
+                });
+                return
             }
-            return res.status(400).json(registerValidate);
+            const lowerCaseEmail = email.toLowerCase();
+            const hashedPassword = md5(md5(password)  + process.env.SECRET);
+            const result = await models.registration({
+                firstName,
+                lastName,
+                lowerCaseEmail,
+                hashedPassword
+            });
 
+            if (result) {
+                res.status(200).json({
+                    message: 'User created successfully',
+                    userEmail: email
+                });
+                return
+            }
+            res.status(401).json({
+                message: result
+            });
 
-        }catch(err) {
-            console.log(err)
-            return res.status(500).json({ error: "Internal server error" });
+        } catch (error) {
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
         }
     },
-    login (req, res) {
-        const body = req.body;
-        const loginValidation = validate.login(body);
+    async login(req, res) {
         try {
-            if (!loginValidation.haveErrors) {
+            const { email, password } = req.body;
 
-                const email = body.email.toLowerCase();
-                const userFilePath = path.join(__dirname, '../users/', `${email}.json`);
+            if (!email || !password) {
+                res.status(422).json({
+                    message: 'Missing param',
+                })
+            };
 
-                if (fs.existsSync(userFilePath)) {
+            const secret = process.env.SECRET;
+            const hash = cryptoJS.AES.encrypt(JSON.stringify({
+                email
+            }), secret).toString();
+            console.log(hash)
 
-                    const userData = JSON.parse(fs.readFileSync(userFilePath, 'utf8'));
+            const lowerCaseEmail = email.toLowerCase()
+            const result = await models.login({ lowerCaseEmail, password })
 
-                    if (md5(body.password) === userData.password) {
-
-                        const SECRET = 'NodeJS';
-                        const hash = CryptoJS.AES.encrypt(JSON.stringify({
-                            email: userData.email,
-                            id: userData.id,
-                        }), SECRET).toString();
-
-                        userData.token = hash;
-                       return  res.json({ "Your x-token": hash });
-                    } else {
-                        res.status(401).json({ "message": "Invalid password" });
-                    }
-                } else {
-                    res.status(404).json({ "message": "User not found" });
-                }
-
+            if (!result.success) {
+                res.status(401).json({
+                    message: user.message
+                });
+                return;
             }
-            return res.status(400).json(loginValidation);
 
-
-        }catch (err){
-            console.log(err);
-            return res.status(500).json({ error: "Internal server error" });
-
+            res.setHeader('x-token', hash)
+            res.status(200).json({
+                message: 'Login successful',
+                user: result.user
+            });
+        } catch (error) {
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
         }
 
     },
-    getUserProfile(req, res) {
-        const body = req.body;
-        const validateGetProfile = validate.getProfile(body);
+    async getUsersList(req, res) {
         try {
-            if (!validateGetProfile.haveErrors) {
+            const users = await models.getUsersList()
 
-                const email = body.email.toLowerCase();
-                const userFilePath = path.join(__dirname, '../users/', `${email}.json`);
-
-                if (fs.existsSync(userFilePath)){
-                    const userData = JSON.parse(fs.readFileSync(userFilePath, 'utf8'));
-
-                    if (userData.password === md5(body.password)) {
-                        return  res.json(200,userData);
-                    }else{
-                        res.send(404,{"message": "invalid password"});
-                    }
-
-                }else{
-                    res.send(400,{"message":"user not found"})
-                }
-            }else{
-                res.send(400,{"message": validateGetProfile});
+            if (!users) {
+                res.status(422).json({
+                    users: {},
+                });
+                return;
             }
-        }catch (err){
-            console.log(err);
-            return res.status(500).json({ error: "Internal server error" });
+            res.status(200).json({
+                message: 'Users retrieved successfully',
+                users: users
+            });
 
+        } catch (error) {
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
+        }
+    },
+    async getProfile(req, res) {
+        try {
+            const { id } = req.params;
+
+            if (!id) {
+                res.status(422).json({
+                    message: 'Missing id!',
+                });
+                return;
+            }
+
+            const result = await models.getProfile({ id })
+
+            if (!result.success) {
+                res.status(401).json({
+                    message: result.message
+                });
+                return;
+            }
+            res.status(200).json({
+                message: 'User retrieved successfully',
+                user: result.rows
+            });
+
+
+        } catch (error) {
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
+        }
+    },
+    async updateProfile(req, res) {
+        try {
+            const {
+                firstName,
+                lastName,
+                email,
+                password,
+                id
+            } = req.body;
+
+            if (!id || !firstName || !lastName || !email || !password) {
+                res.status(422).json({
+                    message: 'Missing parameters!',
+                })
+            };
+
+            const hashedPassword = md5(md5(password)  + process.env.SECRET);
+            const lowerCaseEmail = email.toLowerCase()
+            const result = await models.updateUserProfile({
+                firstName,
+                lastName,
+                lowerCaseEmail,
+                hashedPassword,
+                id
+            })
+
+            if (!result.success) {
+                res.status(401).json({
+                    message: result.message
+                });
+                return;
+            }
+            res.status(200).json({
+                message: 'Update successfully!',
+                id: id
+            });
+        } catch (error) {
+            console.error('Internal Server Error:', error);
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
+        }
+    },
+
+    async deleteProfile(req, res) {
+        try {
+            const { id } = req.params;
+
+            if (!id) {
+                res.status(422).json({
+                    message: 'Missing parameters!',
+                })
+                return;
+            }
+
+            const result = await models.deleteProfile({ id });
+            if (!result.success) {
+                res.status(401).json({
+                    message: result.message
+                });
+                return;
+            }
+            res.status(200).json({
+                message: 'User successfully deleted!',
+                id
+            });
+
+        } catch (error) {
+            console.error('Internal Server Error:', error);
+            res.status(500).json({
+                message: 'Internal Server Error',
+                error: error.message
+            });
         }
     }
 }
